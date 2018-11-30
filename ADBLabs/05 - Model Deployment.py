@@ -90,10 +90,6 @@ ws.write_config()
 
 # COMMAND ----------
 
-# MAGIC %fs ls models/bike_regression
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC 
 # MAGIC ## Register your model 
@@ -302,7 +298,7 @@ aciconfig = AciWebservice.deploy_configuration(cpu_cores=1,
 
 from azureml.core.webservice import Webservice
 
-aci_service_name = 'bike-predictions-1'
+aci_service_name = 'bike-predictions'
 print(aci_service_name)
 aci_service = Webservice.deploy_from_image(deployment_config = aciconfig,
                                            image = image,
@@ -346,17 +342,13 @@ print(test_json)
 
 # COMMAND ----------
 
-type(test_json)
-
-# COMMAND ----------
-
 # MAGIC %md
 # MAGIC 
 # MAGIC Call the web service.
 
 # COMMAND ----------
 
-aci_service.run(input_data=test_json.to_string())
+aci_service.run(input_data=test_json)
 
 # COMMAND ----------
 
