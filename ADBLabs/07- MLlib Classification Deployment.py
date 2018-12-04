@@ -103,8 +103,8 @@ ws.write_config()
 
 import os
 
-model_dbfs_path = '/models/bike_regression'
-model_name = 'BikeRegressionML'
+model_dbfs_path = '/models/churn_classifier'
+model_name = 'ChurnClassifierML'
 model_local = 'file:' + os.getcwd() + '/' + model_name
 
 dbutils.fs.cp(model_dbfs_path, model_local, True)
@@ -127,7 +127,7 @@ from azureml.core.model import Model
 
 mymodel = Model.register(model_path=model_name, 
                          model_name=model_name,
-                         description='Spark ML regression model trained on bike dataset',
+                         description='Spark ML classifier model for customer churn prediction',
                          workspace=ws
                         )
 
@@ -173,7 +173,7 @@ print(mymodel.name, mymodel.description, mymodel.version)
 # MAGIC         global trainedModel
 # MAGIC         global spark
 # MAGIC         
-# MAGIC         spark = pyspark.sql.SparkSession.builder.appName("Bike prediction Spark ML").getOrCreate()
+# MAGIC         spark = pyspark.sql.SparkSession.builder.appName("Churn prediction").getOrCreate()
 # MAGIC         model_name = "<<model_name>>" 
 # MAGIC         model_path = Model.get_model_path(model_name)
 # MAGIC         trainedModel = PipelineModel.load(model_path)
@@ -261,11 +261,11 @@ scoring_script = "score.py"
 image_config = ContainerImage.image_configuration(execution_script=scoring_script, 
                                                   runtime=runtime, 
                                                   conda_file="myenv.yml",
-                                                  description="Image for bike prediction web service",
-                                                  tags={"Regressor": "GBT"})
+                                                  description="Churn prediction web service",
+                                                  tags={"Classifier": "GBT"})
 
 # Create image
-image = Image.create(name = "bike-usage-prediction",
+image = Image.create(name = "churn-classifier",
                      # this is the model object 
                      models = [mymodel],
                      image_config = image_config, 
@@ -288,7 +288,7 @@ from azureml.core.webservice import AciWebservice
 aciconfig = AciWebservice.deploy_configuration(cpu_cores=1, 
                                                memory_gb=1, 
                                                tags={"Model": "GBT"}, 
-                                               description='Predict bike usage')
+                                               description='Predict customer churn')
 
 # COMMAND ----------
 
@@ -302,7 +302,7 @@ aciconfig = AciWebservice.deploy_configuration(cpu_cores=1,
 
 from azureml.core.webservice import Webservice
 
-aci_service_name = 'bike-predictions'
+aci_service_name = 'churn-classifier'
 print(aci_service_name)
 aci_service = Webservice.deploy_from_image(deployment_config = aciconfig,
                                            image = image,
@@ -337,7 +337,7 @@ print(aci_service.scoring_uri)
 import json
 
 # Read 5 rows fro the test dataset
-test_data = spark.read.parquet("/datasets/bike_test_data").limit(5)
+test_data = spark.read.parquet("/datasets/churn_test_data").limit(5)
 
 # Convert it to JSON
 test_json = json.dumps(test_data.toJSON().collect())
@@ -360,3 +360,12 @@ print(aci_service.get_logs())
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC 
+# MAGIC ### Clean up
+
+# COMMAND ----------
+
+#Delete service
+
+aci_service.delete()
