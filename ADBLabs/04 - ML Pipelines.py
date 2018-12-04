@@ -469,7 +469,7 @@ display(predictions.select("hr", "prediction"))
 # COMMAND ----------
 
 model_path = '/models/bike_regression'
-pipelineModel.save(model_path)
+pipelineModel.write().overwrite().save(model_path)
 
 # COMMAND ----------
 
