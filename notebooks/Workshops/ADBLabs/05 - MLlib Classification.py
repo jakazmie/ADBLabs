@@ -6,57 +6,67 @@
 
 # COMMAND ----------
 
-# MAGIC %md # Machine Learning with Spark MLlib
+# MAGIC %md # Developing machine learning classification model with Spark MLlib
 # MAGIC 
-# MAGIC This Python notebook demonstrates how to develop machine learning models with Spark MLlib.
+# MAGIC In this lab you will learn how to develop a machine learning classification model using Spark MLlib in Azure Databricks environment. During the course of the lab you will walk through cardinal phases of a machine learning workflow from data gathering and cleaning through feature engineering and modeling to model inferencing.
+# MAGIC 
+# MAGIC ## Lab scenario
+# MAGIC You will develop a machine learning classification model to predict customer churn. The dataset used during the lab contains historical information about customers of a fictional telecomunication company. You will use Azure Databricks unified analytics platform and Spark MLlib library to implement the ML workflow resulting in a customer churn prediction model.
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC 
+# MAGIC ## MLlib Overview
+# MAGIC 
+# MAGIC ### What is MLlib?
 # MAGIC 
 # MAGIC MLlib is a package, built on and included in Spark, that provides interfaces for
 # MAGIC - gathering and cleaning data,
 # MAGIC - feature engineering and feature selection,
 # MAGIC - training and tuning large scale supervised and unsupervised machine learning models, 
 # MAGIC - and using those models in production.
-
-# COMMAND ----------
-
-# MAGIC %md
 # MAGIC 
-# MAGIC ##![Spark Logo Tiny](https://s3-us-west-2.amazonaws.com/curriculum-release/images/105/logo_spark_tiny.png) MLlib Concepts
+# MAGIC ### MLlib Concepts
 # MAGIC 
 # MAGIC ![MLlib](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/MLlib.png)
 
 # COMMAND ----------
 
-# MAGIC %md
-
-# COMMAND ----------
-
 # MAGIC %md 
 # MAGIC 
-# MAGIC ## Classification for customer churn prediction
 # MAGIC 
-# MAGIC In this notebook we build on the previous lab and develop a machine learning model to predict customer churn.
+# MAGIC ## Gather, Analyze, and Preprocess data
 # MAGIC 
-# MAGIC ### Analyze and Preprocess data
-# MAGIC 
-# MAGIC #### Load and review data
+# MAGIC ### Load and review data
 # MAGIC 
 # MAGIC We begin by loading and doing a rudimentary analysis of customer churn historical data, which is stored in CSV format in Azure Blob.  
 
 # COMMAND ----------
 
-# Set up the widgets
+# Set up notebook parameters
+dbutils.widgets.removeAll()
 dbutils.widgets.text("STORAGE_ACCOUNT", "azureailabs")
 dbutils.widgets.text("CONTAINER", "churn")
+dbutils.widgets.text("SAS_KEY", "")
 
 # COMMAND ----------
 
 # Load data from Azure Blob
 STORAGE_ACCOUNT = dbutils.widgets.get("STORAGE_ACCOUNT").strip()
 CONTAINER = dbutils.widgets.get("CONTAINER").strip()
+SAS_KEY = dbutils.widgets.get("SAS_KEY").strip()
+
+if SAS_KEY != "":
+  # Set up a SAS for a container
+  conf_key = "fs.azure.sas.{container}.{storage_acct}.blob.core.windows.net".format(container=CONTAINER, storage_acct=STORAGE_ACCOUNT)
+  spark.conf.set(conf_key, STORAGE_KEY)
+
 source_str = "wasbs://{container}@{storage_acct}.blob.core.windows.net/".format(container=CONTAINER, storage_acct=STORAGE_ACCOUNT)
   
 # Read the data from the default datasets repository in Databricks
-display(spark.read.option("header", True).option("inferSchema", True).csv(source_str))
+df = spark.read.option("header", True).option("inferSchema", True).csv(source_str)
+display(df)
 
 
 # COMMAND ----------
@@ -69,7 +79,7 @@ display(spark.read.option("header", True).option("inferSchema", True).csv(source
 # MAGIC 
 # MAGIC Some of the columns - e.g. `customerid` and `callingnum` - are not good candidates for features. They don't capture much information about the customer profile and may *leak the target* in the model. We will remove them from the training dataset.
 # MAGIC 
-# MAGIC There also some suspicious records. The first two records indicate that a 12 year old makes over $160,000 a year. Although it is possible - a trust fund kid or a child movie star - it is highly improbable.
+# MAGIC There also some suspicious records. The first two records indicate that a 12 year old makes over $160,000 a year. Although it is possible it is highly improbable.
 # MAGIC 
 # MAGIC Let's drill down a little bit.
 
@@ -165,11 +175,12 @@ display(clean_df.groupBy("churn").count())
 
 # MAGIC %md #### Split data into training and test sets
 # MAGIC 
-# MAGIC At this point we will split our dataset into separate training and test sets. Since our dataset is unbalanced we will implement a stratified split.
+# MAGIC At this point we will split our dataset into separate training and test sets. 
 
 # COMMAND ----------
 
 # Split the dataset randomly into 85% for training and 15% for testing.
+
 train, test = clean_df.randomSplit([0.85, 0.15], 0)
 print("We have {} training examples and {} test examples.".format(train.count(), test.count()))
 
@@ -217,10 +228,7 @@ train.write.mode("overwrite").parquet("/datasets/churn_train_data")
 
 # COMMAND ----------
 
-display(train.groupBy("churn").count())
-
-# COMMAND ----------
-
+# MAGIC 
 # MAGIC %md ### Train a Machine Learning Pipeline
 # MAGIC 
 # MAGIC Now that we have understood our data and prepared it as a DataFrame with pre-processed data, we are ready to train an ML classifier. In this lab we will focus on a single algorithm - Gradient-boosted tree classifier - however in most cases you should go through a more thorough model selection process to find an algorithm that best fits you scenario and training data. We will also demonstrate how to automate hyperparameter tuning using Spark ML validators.
@@ -239,15 +247,15 @@ display(train.groupBy("churn").count())
 # MAGIC * `Classifier`: This stage will train the classification algorithm.
 # MAGIC * `CrossValidator`: The machine learning algorithms have several [hyperparameters](https://en.wikipedia.org/wiki/Hyperparameter_optimization), and tuning them to our data can improve performance of the model.  We will do this tuning using Spark's [Cross Validation](https://en.wikipedia.org/wiki/Cross-validation_&#40;statistics&#41;) framework, which automatically tests a grid of hyperparameters and chooses the best.
 # MAGIC 
-# MAGIC ![Image of Pipeline](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/complete_pipeline.png)
+# MAGIC ![Image of Pipeline](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/pipeline.png)
 
 # COMMAND ----------
 
 # MAGIC %md First, we define the feature processing stages of the Pipeline:
-# MAGIC * Convert string columns to categorical features. For the sake of demonstration we will only use a subset of string columns.
+# MAGIC * Convert string columns to categorical features. 
 # MAGIC * Assemble feature columns into a feature vector. 
 # MAGIC * Identify categorical features, and index them.
-# MAGIC ![Image of feature processing](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/feature_preprocessing.png)
+# MAGIC ![Image of feature processing](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/features.png)
 
 # COMMAND ----------
 
@@ -284,20 +292,20 @@ display(pipeline.fit(train).transform(train))
 
 # COMMAND ----------
 
-# MAGIC %md Second, we define the model training stage of the Pipeline. `RandomForestClassifier` takes feature vectors and labels as input and learns to predict labels of new examples.
-# MAGIC ![RF image](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/training.png)
+# MAGIC %md Second, we define the model training stage of the Pipeline. `GBTClassifier` takes feature vectors and labels as input and learns to predict labels of new examples.
+# MAGIC ![RF image](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/train.png)
 
 # COMMAND ----------
 
 from pyspark.ml.classification import GBTClassifier
 # Takes the "features" column and learns to predict "churn"
-classifier = GBTClassifier(labelCol="churn", featuresCol="features")
+classifier = GBTClassifier(labelCol="churn", featuresCol="features", maxBins=50)
 
 # COMMAND ----------
 
-# MAGIC %md Third, we wrap the model training stage within a `CrossValidator` stage.  `CrossValidator` knows how to call the classifier algorithm with different hyperparameter settings.  It will train multiple models and choose the best one, based on minimizing some metric.  In this example, our metric is *weightedRecall*.
+# MAGIC %md Third, we wrap the model training stage within a `CrossValidator` stage.  `CrossValidator` knows how to call the classifier algorithm with different hyperparameter settings.  It will train multiple models and choose the best one, based on minimizing some metric.  In this lab, our metric is *AUC*.
 # MAGIC 
-# MAGIC ![Confusion matrix](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/confusion_matrix.png)
+# MAGIC ![Crossvalidate](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/tune.png)
 
 # COMMAND ----------
 
@@ -320,7 +328,7 @@ cv = CrossValidator(estimator=classifier, evaluator=evaluator, estimatorParamMap
 
 # MAGIC %md Finally, we can tie our feature processing and model training stages together into a single `Pipeline`.
 # MAGIC 
-# MAGIC ![Image of Pipeline](http://training.databricks.com/databricks_guide/5-pipeline.png)
+# MAGIC ![Image of Pipeline](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/pipeline.png)
 
 # COMMAND ----------
 
@@ -341,16 +349,24 @@ print(pipeline.getStages())
 # MAGIC * For each random sample of data in Cross Validation,
 # MAGIC   * For each setting of the hyperparameters,
 # MAGIC     * `CrossValidator` is training a separate GBT ensemble which contains many Decision Trees.
+# MAGIC     
+# MAGIC Since our training set is unbalanced we will apply a technique called *under sampling*. We will use all instances of a minority class but select a random sample from the majority class. 
 
 # COMMAND ----------
 
+# Load training data
 train = spark.read.parquet("/datasets/churn_train_data")
 
+# Undersample majority class
 stratified_train = train.sampleBy('Churn', fractions={0: 0.2, 1: 1.0}).cache()
 
-stratified_train.groupby('Churn').count().toPandas()
+display(stratified_train.groupby('Churn').count())
 
+# COMMAND ----------
 
+# MAGIC %md
+# MAGIC 
+# MAGIC Start training.
 
 # COMMAND ----------
 
@@ -360,7 +376,7 @@ pipelineModel = pipeline.fit(stratified_train)
 
 # MAGIC %md ## Make predictions, and evaluate results
 # MAGIC 
-# MAGIC Our final step will be to use our fitted model to make predictions on new data.  We will use our held-out test set, but you could also use this model to make predictions on completely new data.  For example, if we created some features data based on weather predictions for the next week, we could predict bike rentals expected during the next week!
+# MAGIC Our final step will be to use our fitted model to make predictions on new data.  We will use our held-out test set, but you could also use this model to make predictions on completely new data.  
 # MAGIC 
 # MAGIC We will also evaluate our predictions.  Computing evaluation metrics is important for understanding the quality of predictions, as well as for comparing models and tuning parameters.
 
@@ -376,10 +392,6 @@ predictions = pipelineModel.transform(test).cache()
 
 # COMMAND ----------
 
-display(predictions.select("churn", "prediction").groupBy("prediction").count())
-
-# COMMAND ----------
-
 # MAGIC %md It is easier to view the results when we limit the columns displayed to:
 # MAGIC * `churn`: the true churn indicator
 # MAGIC * `prediction`: our predicted churn
@@ -387,25 +399,25 @@ display(predictions.select("churn", "prediction").groupBy("prediction").count())
 
 # COMMAND ----------
 
+display(predictions.select("churn", "prediction"))
+
+# COMMAND ----------
+
 # MAGIC %md
 # MAGIC 
-# MAGIC Calculate performance metrics. The model was fine-tune for *Recall* but we will also calculate the model's *accuracy*.
+# MAGIC Calculate classification performance metrics.
+# MAGIC 
+# MAGIC ![Confusion matrix](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/confusion.png)
+# MAGIC 
+# MAGIC The metrics we tried to optimize was *AUC* of ROC.
+# MAGIC 
+# MAGIC ![ROC](https://github.com/jakazmie/images-for-hands-on-labs/raw/master/roc.png)
 
 # COMMAND ----------
 
 # Calculate AOC
 print("{} on our test set: {}".format(evaluator.getMetricName(), evaluator.evaluate(predictions, {})))
 
-
-# COMMAND ----------
-
-# MAGIC %md **(2) Visualization**: Plotting predictions vs. features can help us make sure that the model "understands" the input features and is using them properly to make predictions.  Below, we can see that the model predictions are correlated with the hour of the day, just like the true labels were.
-# MAGIC 
-# MAGIC *Note: For more expert ML usage, check out other Databricks guides on plotting residuals, which compare predictions vs. true labels.*
-
-# COMMAND ----------
-
-display(predictions.select("hr", "prediction"))
 
 # COMMAND ----------
 
@@ -422,36 +434,15 @@ display(predictions.select("hr", "prediction"))
 
 # COMMAND ----------
 
-model_path = '/models/bike_regression'
+model_path = '/models/churn_classifier'
 pipelineModel.write().overwrite().save(model_path)
 
 # COMMAND ----------
 
-# MAGIC %r
-# MAGIC 
-# MAGIC ml_save(pipeline_model, "/models/bike_regression_r")
-
-# COMMAND ----------
-
-# MAGIC %fs ls 'dbfs:/models/bike_regression'
+# MAGIC %fs ls 'dbfs:/models/churn_classifier'
 
 # COMMAND ----------
 
 # MAGIC %md
 # MAGIC 
 # MAGIC You will use the saved model during the deployment lab.
-
-# COMMAND ----------
-
-# MAGIC %md ## Improving our model
-# MAGIC 
-# MAGIC You are not done yet!  This section describes how to take this notebook and improve the results even more.  Try copying this notebook into your Databricks account and extending it, and see how much you can improve the predictions.
-# MAGIC 
-# MAGIC There are several ways we could further improve our model:
-# MAGIC * **Expert knowledge**: We may not be experts on bike sharing programs, but we know a few things we can use:
-# MAGIC   * The count of rentals cannot be negative.  `GBTRegressor` does not know that, but we could threshold the predictions to be `>= 0` post-hoc.
-# MAGIC   * The count of rentals is the sum of `registered` and `casual` rentals.  These two counts may have different behavior.  (Frequent cyclists and casual cyclists probably rent bikes for different reasons.)  The best models for this dataset take this into account.  Try training one GBT model for `registered` and one for `casual`, and then add their predictions together to get the full prediction.
-# MAGIC * **Better tuning**: To make this notebook run quickly, we only tried a few hyperparameter settings.  To get the most out of our data, we should test more settings.  Start by increasing the number of trees in our GBT model by setting `maxIter=200`; it will take longer to train but can be more accurate.
-# MAGIC * **Feature engineering**: We used the basic set of features given to us, but we could potentially improve them.  For example, we may guess that weather is more or less important depending on whether or not it is a workday vs. weekend.  To take advantage of that, we could build a few feature by combining those two base features.  MLlib provides a suite of feature transformers; find out more in the [ML guide](http://spark.apache.org/docs/latest/ml-features.html).
-# MAGIC 
-# MAGIC *Good luck!*
