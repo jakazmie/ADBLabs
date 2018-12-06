@@ -44,23 +44,27 @@
 
 # COMMAND ----------
 
-# Set up notebook parameters
+# Reset the widgets
 dbutils.widgets.removeAll()
+
+# COMMAND ----------
+
+# Set up notebook parameters
 dbutils.widgets.text("STORAGE_ACCOUNT", "azureailabs")
 dbutils.widgets.text("CONTAINER", "churn")
-dbutils.widgets.text("SAS_KEY", "")
+dbutils.widgets.text("ACCOUNT_KEY", "")
 
 # COMMAND ----------
 
 # Load data from Azure Blob
 STORAGE_ACCOUNT = dbutils.widgets.get("STORAGE_ACCOUNT").strip()
 CONTAINER = dbutils.widgets.get("CONTAINER").strip()
-SAS_KEY = dbutils.widgets.get("SAS_KEY").strip()
+ACCOUNT_KEY = dbutils.widgets.get("ACCOUNT_KEY").strip()
 
-if SAS_KEY != "":
-  # Set up a SAS for a container
-  conf_key = "fs.azure.sas.{container}.{storage_acct}.blob.core.windows.net".format(container=CONTAINER, storage_acct=STORAGE_ACCOUNT)
-  spark.conf.set(conf_key, STORAGE_KEY)
+if ACCOUNT_KEY != "":
+  # Set up account access key
+  conf_key = "fs.azure.account.key.{storage_acct}.blob.core.windows.net".format(storage_acct=STORAGE_ACCOUNT)
+  spark.conf.set(conf_key, ACCOUNT_KEY)
 
 source_str = "wasbs://{container}@{storage_acct}.blob.core.windows.net/".format(container=CONTAINER, storage_acct=STORAGE_ACCOUNT)
   
