@@ -72,8 +72,8 @@ dbutils.widgets.text("JDBC_USERNAME", "")
 dbutils.widgets.text("JDBC_PASSWORD", "")
 
 dbutils.widgets.text("STORAGE_ACCOUNT", "azureailabs")
-dbutils.widgets.text("CONTAINER", "churn")
-dbutils.widgets.text("ACCOUNT_KEY", "")
+dbutils.widgets.text("CONTAINER", "people10m")
+dbutils.widgets.text("SAS_KEY", "?sv=2017-11-09&ss=bf&srt=sco&sp=rl&se=2019-04-07T04:13:15Z&st=2018-11-22T21:13:15Z&spr=https&sig=LiKQUVSxgVtB%2FtkfZ48QYmFYSwhk9cXcT0Woji0eKUQ%3D")
 
 # COMMAND ----------
 
@@ -111,10 +111,10 @@ display(df)
 
 # COMMAND ----------
 
-STORAGE_ACCOUNT = "azureailabs"
-CONTAINER = "people10m"
+STORAGE_ACCOUNT = dbutils.widgets.get("STORAGE_ACCOUNT").strip()
+CONTAINER = dbutils.widgets.get("CONTAINER").strip()
 MOUNT_POINT = "/mnt/people10m"
-SAS_KEY = "?sv=2017-11-09&ss=bf&srt=sco&sp=rl&se=2019-04-07T04:13:15Z&st=2018-11-22T21:13:15Z&spr=https&sig=LiKQUVSxgVtB%2FtkfZ48QYmFYSwhk9cXcT0Woji0eKUQ%3D"
+SAS_KEY = dbutils.widgets.get("SAS_KEY").strip()
 
 source_str = "wasbs://{container}@{storage_acct}.blob.core.windows.net/".format(container=CONTAINER, storage_acct=STORAGE_ACCOUNT)
 conf_key = "fs.azure.sas.{container}.{storage_acct}.blob.core.windows.net".format(container=CONTAINER, storage_acct=STORAGE_ACCOUNT)
