@@ -59,14 +59,6 @@ workspace_name = "<your workspace name>"
 
 # COMMAND ----------
 
-# Set connection parameters
-subscription_id = "952a710c-8d9c-40c1-9fec-f752138cc0b3"
-resource_group = "jkaml"
-workspace_name = "jkaml"
-
-
-# COMMAND ----------
-
 from azureml.core import Workspace# Connect to the workspace
 
 from azureml.core import Workspace
@@ -369,3 +361,6 @@ print(aci_service.get_logs())
 #Delete service
 
 aci_service.delete()
+
+# COMMAND ----------
+
