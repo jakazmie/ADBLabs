@@ -59,13 +59,31 @@
 
 # COMMAND ----------
 
-jdbcHostname = "jksqldbserver.database.windows.net"
-jdbcDatabase = "jksqldb"
+# Reset the widgets
+dbutils.widgets.removeAll()
+
+# COMMAND ----------
+
+# Set up notebook parameters
+dbutils.widgets.text("JDBC_HOSTNAME", "jksqldbserver.database.windows.net")
+dbutils.widgets.text("JDBC_DATABASE", "jksqldb")
+
+dbutils.widgets.text("JDBC_USERNAME", "")
+dbutils.widgets.text("JDBC_PASSWORD", "")
+
+dbutils.widgets.text("STORAGE_ACCOUNT", "azureailabs")
+dbutils.widgets.text("CONTAINER", "churn")
+dbutils.widgets.text("ACCOUNT_KEY", "")
+
+# COMMAND ----------
+
+jdbcHostname = dbutils.widgets.get("JDBC_HOSTNAME").strip()
+jdbcDatabase = dbutils.widgets.get("JDBC_DATABASE").strip()
 jdbcPort = 1433
 jdbcUrl = "jdbc:sqlserver://{0}:{1};database={2}".format(jdbcHostname, jdbcPort, jdbcDatabase)
 
-jdbcUserName = "demouser"
-jdbcPassword = "IrvineLab2018"
+jdbcUserName = dbutils.widgets.get("JDBC_USERNAME").strip()
+jdbcPassword = dbutils.widgets.get("JDBC_PASSWORD").strip()
 
 connectionProperties = {
   "user" : jdbcUserName,
